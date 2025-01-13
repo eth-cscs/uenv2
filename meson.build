@@ -10,11 +10,8 @@ project('uenv', ['cpp'],
 version = meson.project_version()
 
 oras_version = get_option('oras_version')
-
 uenv_slurm_plugin = get_option('slurm_plugin')
 uenv_cli = get_option('cli')
-
-conf_data = configuration_data()
 
 add_global_arguments('-Wno-missing-field-initializers', language : 'cpp')
 
@@ -22,13 +19,53 @@ add_global_arguments('-Wno-missing-field-initializers', language : 'cpp')
 
 # use meson wrap to provide the dependencies, because the 'default_library=static' option
 # will be propogated to each dependency, for a statically linked executable.
-catch_dep = subproject('catch2', default_options: ['werror=false', 'warning_level=0', 'tests=false']).get_variable('catch2_with_main_dep')
-cli11_dep = subproject('cli11', default_options: ['werror=false', 'warning_level=0']).get_variable('CLI11_dep')
-fmt_dep   = subproject('fmt', default_options: ['werror=false', 'warning_level=0']).get_variable('fmt_dep')
-json_dep = subproject('nlohmann_json', default_options: ['werror=false', 'warning_level=0']).get_variable('nlohmann_json_dep')
-spdlog_dep   = subproject('spdlog', default_options: ['werror=false', 'warning_level=0','std_format=disabled','external_fmt=enabled']).get_variable('spdlog_dep')
-sqlite3_dep = subproject('sqlite3', default_options: ['werror=false', 'warning_level=0']).get_variable('sqlite3_dep')
-subproject('curl', default_options: ['werror=false', 'warning_level=0', 'tests=disabled', 'unittests=disabled', 'tool=disabled'])
+catch_dep = subproject('catch2',
+                       default_options: [
+                         'werror=false',
+                         'warning_level=0',
+                         'tests=false'
+                       ]
+                      ).get_variable('catch2_with_main_dep')
+cli11_dep = subproject('cli11',
+                       default_options: [
+                         'werror=false',
+                         'warning_level=0'
+                       ]
+                      ).get_variable('CLI11_dep')
+fmt_dep   = subproject('fmt',
+                       default_options: [
+                         'werror=false',
+                         'warning_level=0'
+                       ]
+                      ).get_variable('fmt_dep')
+json_dep  = subproject('nlohmann_json',
+                       default_options: [
+                         'werror=false',
+                         'warning_level=0'
+                       ]
+                      ).get_variable('nlohmann_json_dep')
+spdlog_dep= subproject('spdlog',
+                       default_options: [
+                         'werror=false',
+                         'warning_level=0',
+                         'std_format=disabled',
+                         'external_fmt=enabled'
+                        ]
+                      ).get_variable('spdlog_dep')
+sqlite3_dep= subproject('sqlite3',
+                        default_options: [
+                          'werror=false',
+                          'warning_level=0'
+                        ]
+                       ).get_variable('sqlite3_dep')
+subproject('curl',
+           default_options: [
+             'werror=false',
+             'warning_level=0',
+             'tests=disabled',
+             'unittests=disabled',
+             'tool=disabled'
+           ])
 
 curl_dep = dependency('libcurl', required: true)
 barkeep_dep = declare_dependency(
@@ -87,21 +124,21 @@ if uenv_cli
             'src/cli/uenv.cpp',
             'src/cli/build.cpp',
     ]
-    uenv_dep = [sqlite3_dep]
 
     cli = executable('uenv',
             sources: uenv_src,
-            dependencies: [uenv_dep, lib_dep, fmt_dep, spdlog_dep, cli11_dep, barkeep_dep],
+            dependencies: [lib_dep, fmt_dep, spdlog_dep, cli11_dep, barkeep_dep],
             c_args: [
               '-DVERSION="@0@"'.format(version),
             ],
             install: true)
 
-    arch = 'amd64'
+    # download the oras executable, which will be installed in libexec
+    oras_arch = 'amd64'
     if host_machine.cpu_family() == 'aarch64'
-        arch = 'arm64'
+        oras_arch = 'arm64'
     endif
-    oras_url = 'https://github.com/oras-project/oras/releases/download/v@0@/oras_@0@_linux_@1@.tar.gz'.format(oras_version, arch)
+    oras_url = 'https://github.com/oras-project/oras/releases/download/v@0@/oras_@0@_linux_@1@.tar.gz'.format(oras_version, oras_arch)
 
     oras_download = custom_target(
         'oras-download',
