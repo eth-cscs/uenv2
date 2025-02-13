@@ -153,12 +153,12 @@ expected<std::string, error> upload(std::string url,
     CURL_EASY(curl_easy_setopt(h, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1));
 
     // log X-Correlation-ID header for cscs-ci debugging
-    auto header_callback = [header_key="X-Correlation-ID:"](
-                               char* buffer, size_t size, size_t nitems,
-                               [[maybe_unused]] void* userdata) -> size_t {
+    auto header_callback = [](char* buffer, size_t size, size_t nitems,
+                              [[maybe_unused]] void* userdata) -> size_t {
         size_t total_size = size * nitems;
         char* header = (char*)buffer;
         char* correlation_id;
+        auto header_key = "X-Correlation-ID:";
 
         if (strncasecmp(header, header_key, strlen(header_key)) == 0) {
             correlation_id = header + strlen(header_key);
