@@ -152,6 +152,25 @@ expected<std::string, error> upload(std::string url,
 
     CURL_EASY(curl_easy_setopt(h, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1));
 
+    // log X-Correlation-ID header for cscs-ci debugging
+    auto header_callback = [header_key="X-Correlation-ID:"](
+                               char* buffer, size_t size, size_t nitems,
+                               [[maybe_unused]] void* userdata) -> size_t {
+        size_t total_size = size * nitems;
+        char* header = (char*)buffer;
+        char* correlation_id;
+
+        if (strncasecmp(header, header_key, strlen(header_key)) == 0) {
+            correlation_id = header + strlen(header_key);
+            correlation_id[strcspn(correlation_id, "\r\n")] =
+                '\0'; // Trim newline characters
+            spdlog::trace("curl::upload X-Correlation-ID {}", correlation_id);
+        }
+
+        return total_size;
+    };
+    CURL_EASY(curl_easy_setopt(h, CURLOPT_HEADERFUNCTION, header_callback));
+
     // Perform the request
     CURL_EASY(curl_easy_perform(h));
 
