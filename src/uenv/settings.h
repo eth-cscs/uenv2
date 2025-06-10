@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 
+#include <uenv/registry.h>
 #include <util/envvars.h>
 #include <util/expected.h>
 
@@ -11,6 +12,8 @@ namespace uenv {
 
 struct config_base {
     std::optional<std::string> repo;
+    std::optional<std::string> registry;
+    std::optional<std::string> registry_type;
     std::optional<bool> color;
 };
 
@@ -36,6 +39,8 @@ config_base merge(const config_base& lhs, const config_base& rhs);
 
 struct configuration {
     std::optional<std::filesystem::path> repo;
+    std::optional<std::filesystem::path> registry;
+    registry_type registry_type_val;
     bool color;
     configuration& operator=(const configuration&) = default;
 };

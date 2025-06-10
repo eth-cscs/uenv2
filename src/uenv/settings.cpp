@@ -6,6 +6,7 @@
 #include <fmt/std.h>
 #include <spdlog/spdlog.h>
 
+#include <site/site.h>
 #include <uenv/parse.h>
 #include <uenv/repository.h>
 #include <uenv/settings.h>
@@ -23,6 +24,8 @@ const std::string config_file_default =
 # set the path to the local uenv repository
 #repo = /users/bobsmith/uenv
 
+#registry = ...
+
 # by default uenv will choose whether to use color based on your environment.
 #color=true
 #color=false
@@ -35,6 +38,12 @@ config_base merge(const config_base& lhs, const config_base& rhs) {
         .repo = lhs.repo   ? lhs.repo
                 : rhs.repo ? rhs.repo
                            : std::nullopt,
+        .registry = lhs.registry   ? lhs.registry
+                    : rhs.registry ? rhs.registry
+                                   : std::nullopt,
+        .registry_type = lhs.registry_type   ? lhs.registry_type
+                         : rhs.registry_type ? rhs.registry_type
+                                             : std::nullopt,
         .color = lhs.color   ? lhs.color
                  : rhs.color ? rhs.color
                              : std::nullopt,
@@ -44,6 +53,8 @@ config_base merge(const config_base& lhs, const config_base& rhs) {
 config_base default_config(const envvars::state& env) {
     return {
         .repo = default_repo_path(env),
+        .registry = "jfrog.svc.cscs.ch/uenv",  // Default site registry URL
+        .registry_type = "site",
         .color = color::default_color(env),
     };
 }
@@ -53,7 +64,8 @@ generate_configuration(const config_base& base) {
     configuration config;
 
     // set the repo path
-    // initialise to unset
+
+    // initialise to unset, and then set if the path provided by base is valid.
     config.repo = {};
     if (base.repo) {
         if (auto path = parse_path(base.repo.value())) {
@@ -67,6 +79,16 @@ generate_configuration(const config_base& base) {
             spdlog::warn("invalid repo path {}", path.error().message());
         }
     }
+
+    config.registry = base.registry;
+
+    // set registry type
+    auto registry_type_result =
+        parse_registry_type(base.registry_type.value_or("site"));
+    if (!registry_type_result) {
+        return util::unexpected(registry_type_result.error());
+    }
+    config.registry_type_val = *registry_type_result;
 
     // toggle color output
     config.color = base.color.value_or(false);
@@ -186,9 +208,22 @@ read_config_file(const std::filesystem::path& path,
             } else {
                 return util::unexpected(
                     fmt::format("invalid configuration value '{}={}': color "
-                                "muste be true or false",
+                                "must be true or false",
                                 key, value));
             }
+        } else if (key == "registry") {
+            // an empty value is interpretted as unsetting the registry
+            if (value == "") {
+                config.registry = std::nullopt;
+            } else if (const auto p = parse_registry_url(value)) {
+                config.registry = p.value();
+            } else {
+                return util::unexpected(
+                    fmt::format("invalid reguistry url '{}={}': {}", key, value,
+                                p.error().message()));
+            }
+        } else if (key == "registry_type") {
+            config.registry_type = value;
         } else {
             return util::unexpected(
                 fmt::format("invalid configuration parameter '{}'", key));
