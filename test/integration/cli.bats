@@ -10,7 +10,11 @@ function setup() {
     bats_load_library bats-assert
     load ./common
 
-    export PATH="$BUILD_PATH:$PATH"
+    export PATH="$UENV_BIN_PATH:$PATH"
+
+    echo $PATH >&3
+    which uenv >&3
+    which squashfs-mount >&3
 
     unset UENV_MOUNT_LIST
 
