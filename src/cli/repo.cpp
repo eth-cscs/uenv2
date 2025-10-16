@@ -8,6 +8,7 @@
 #include <uenv/parse.h>
 #include <uenv/repository.h>
 #include <util/expected.h>
+#include <util/lustre.h>
 
 #include "repo.h"
 #include "terminal.h"
@@ -35,6 +36,14 @@ void repo_args::add_cli(CLI::App& cli,
     status_cli->add_option("path", status_args.path, "path of the repo");
     status_cli->callback(
         [&settings]() { settings.mode = uenv::cli_mode::repo_status; });
+
+    // add the update command, i.e. `uenv repo update ...`
+    auto* update_cli = repo_cli->add_subcommand(
+        "update", "update an existing uenv repository");
+
+    update_cli->add_option("path", status_args.path, "path of the repo");
+    update_cli->callback(
+        [&settings]() { settings.mode = uenv::cli_mode::repo_update; });
 }
 
 // inspect the repo path that is optionally passed as an argument.
@@ -78,18 +87,76 @@ int repo_status(const repo_status_args& args, const global_settings& settings) {
         term::error("invalid repository path: {}", path.error());
         return 1;
     }
+
     auto status = validate_repository(*path);
     if (status == readonly) {
-        fmt::print("the repository at {} is read only\n", *path);
+        term::msg("the repository at {} is read only", *path);
     }
     if (status == readwrite) {
-        fmt::print("the repository at {} is read-write\n", *path);
+        term::msg("the repository at {} is read-write", *path);
     }
     if (status == no_exist) {
-        fmt::print("no repository at {}\n", *path);
+        term::msg("no repository at {}", *path);
     }
     if (status == invalid) {
-        fmt::print("the repository at {} is in invalid state\n", *path);
+        term::msg("the repository at {} is in invalid state", *path);
+    }
+
+    // check for lustre striping
+    if (status != invalid) {
+        if (auto p = lustre::load_path(*path, settings.calling_environment)) {
+            auto state = lustre::is_striped(*p);
+            if (!state) {
+                term::msg(
+                    "the repository at {} is on a lustre file system and is "
+                    "not striped",
+                    *path);
+                term::msg("\n{}", state);
+                term::msg("\nrun '{}' to apply striping to the repository",
+                          color::yellow("uenv repo update"));
+            } else {
+                term::msg(
+                    "the repository at {} is a striped lustre file system",
+                    *path);
+            }
+        } else {
+            term::msg("the repository at {} is not a lustre file system",
+                      *path);
+        }
+    }
+
+    return 0;
+}
+
+int repo_update(const repo_status_args& args, const global_settings& settings) {
+    using enum repo_state;
+
+    auto path = resolve_repo_path(args.path, settings);
+    if (!path) {
+        term::error("invalid repository path: {}", path.error());
+        return 1;
+    }
+
+    auto status = validate_repository(*path);
+    if (status == readonly) {
+        term::error("the repository at {} is read only\n", *path);
+        return 1;
+    }
+    if (status == no_exist) {
+        term::error("no repository at {}\n", *path);
+        return 1;
+    }
+    if (status == invalid) {
+        term::error("the repository at {} is in invalid state\n", *path);
+        return 1;
+    }
+
+    if (auto p = lustre::load_path(*path, settings.calling_environment)) {
+        if (!lustre::is_striped(*p)) {
+            term::msg("{} is on a lustre file system and is not striped",
+                      p->path.string());
+            lustre::set_striping(*p, lustre::default_striping, true);
+        }
     }
 
     return 0;
